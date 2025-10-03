@@ -9,6 +9,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
 
 // Foursquare API Configuration
 const API_KEY = process.env.FOURSQUARE_API_KEY || "VAIBONJPWHIA3LZVS41H1YJX2XNZM5HTLKPBC30KCCHHO24P";
@@ -373,7 +374,7 @@ class FoursquareHTTPServer {
     const data = await this.makeApiRequest('/search', params);
 
     const results = data.results || [];
-    const formattedResults = results.map(place => ({
+    let formattedResults = results.map(place => ({
       fsq_place_id: place.fsq_place_id,
       name: place.name,
       address: place.location?.formatted_address || place.location?.country || 'Address not available',
@@ -383,6 +384,12 @@ class FoursquareHTTPServer {
       longitude: place.longitude || 'No lng',
       link: place.link || 'No link'
     }));
+
+    // Enhance with Bing images
+    formattedResults = await this.enhanceWithImages(formattedResults, (place) => {
+      // Create search term: place name + location for better results
+      return `${place.name} ${near}`;
+    });
 
     return {
       content: [
@@ -396,6 +403,7 @@ class FoursquareHTTPServer {
                   `   📏 ${place.distance}\n` +
                   `   🌍 ${place.latitude}, ${place.longitude}\n` +
                   `   🔗 ${place.link}\n` +
+                  `   🖼️ ${place.bingImage || 'No Bing image found'}\n` +
                   `   🆔 ID: ${place.fsq_place_id}\n`
                 ).join('\n')
         }
@@ -602,7 +610,13 @@ class FoursquareHTTPServer {
       }
 
       // Map to our format
-      const activities = items.map(item => this.mapActivity(item));
+      let activities = items.map(item => this.mapActivity(item));
+
+      // Enhance with Bing images
+      activities = await this.enhanceWithImages(activities, (activity) => {
+        // Create search term: activity name + city for better results
+        return `${activity.name} ${city}`;
+      });
 
       console.log(`✅ [AMADEUS] Found ${activities.length} activities for "${type}" in ${city}`);
 
@@ -615,7 +629,8 @@ class FoursquareHTTPServer {
                     `${index + 1}. **${activity.name}**\n` +
                     `   🔗 ${activity.link || 'No booking link'}\n` +
                     `   💰 ${activity.price.amount ? `${activity.price.amount} ${activity.price.currency}` : 'Price not available'}\n` +
-                    `   📸 ${activity.image || 'No image'}\n` +
+                    `   📸 ${activity.image || 'No original image'}\n` +
+                    `   🖼️ ${activity.bingImage || 'No Bing image found'}\n` +
                     `   📝 ${activity.description || 'No description'}\n`
                   ).join('\n')
           }
@@ -633,6 +648,80 @@ class FoursquareHTTPServer {
     
     // Use searchActivities without type filter
     return await this.searchActivities({ city, type: '', limit });
+  }
+
+  // === BING IMAGE SCRAPING METHODS ===
+
+  async getBingImageUrl(searchTerm, count = 1) {
+    if (!searchTerm || searchTerm.trim() === '') {
+      return null;
+    }
+
+    try {
+      console.log(`🖼️ [BING] Searching images for: ${searchTerm}`);
+      
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      };
+
+      const url = `https://www.bing.com/images/search?q=${encodeURIComponent(searchTerm)}&first=1`;
+      const response = await fetch(url, { headers });
+
+      if (!response.ok) {
+        console.log(`❌ [BING] Request failed: ${response.status}`);
+        return null;
+      }
+
+      const html = await response.text();
+      const $ = cheerio.load(html);
+      
+      const imageUrls = [];
+      
+      // Find all image containers with 'iusc' class
+      $('a.iusc').each((index, element) => {
+        if (imageUrls.length >= count) return false; // Break loop
+        
+        const mAttribute = $(element).attr('m');
+        if (mAttribute) {
+          try {
+            const data = JSON.parse(mAttribute);
+            const imageUrl = data.murl; // Original image URL
+            if (imageUrl) {
+              imageUrls.push(imageUrl);
+            }
+          } catch (parseError) {
+            // Ignore JSON parse errors
+          }
+        }
+      });
+
+      console.log(`✅ [BING] Found ${imageUrls.length} images for "${searchTerm}"`);
+      return imageUrls.length > 0 ? imageUrls[0] : null; // Return first image
+
+    } catch (error) {
+      console.error(`❌ [BING] Error fetching images: ${error.message}`);
+      return null;
+    }
+  }
+
+  async enhanceWithImages(items, nameExtractor) {
+    // Enhance results with Bing images
+    const enhancedItems = [];
+    
+    for (const item of items) {
+      const searchTerm = nameExtractor(item);
+      const imageUrl = await this.getBingImageUrl(searchTerm, 1);
+      
+      enhancedItems.push({
+        ...item,
+        bingImage: imageUrl
+      });
+      
+      // Small delay to be respectful to Bing
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    return enhancedItems;
   }
 
   async start(port = 3000) {
