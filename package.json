@@ -1,0 +1,33 @@
+{
+  "name": "foursquare-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Foursquare Places API integration",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node http-server.js",
+    "dev": "nodemon server.js",
+    "http": "node http-server.js",
+    "http-dev": "nodemon http-server.js",
+    "test-api": "node test-api.js",
+    "test-mcp": "node test-mcp.js",
+    "test-simple": "node test-simple.js",
+    "test-http": "node test-openai-agent.js http",
+    "test-agent": "node test-openai-agent.js agent"
+  },
+  "keywords": ["mcp", "foursquare", "places", "api"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "node-fetch": "^3.3.2",
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
