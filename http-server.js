@@ -38,9 +38,27 @@ class FoursquareHTTPServer {
     this.app.use(cors());
     this.app.use(express.json());
     
-    // Request logging
+    // Enhanced request logging
     this.app.use((req, res, next) => {
-      console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+      const timestamp = new Date().toISOString();
+      const clientIP = req.ip || req.connection.remoteAddress;
+      
+      console.log(`\n🔵 [${timestamp}] ${req.method} ${req.path}`);
+      console.log(`👤 Client IP: ${clientIP}`);
+      console.log(`📋 Headers: ${JSON.stringify(req.headers, null, 2)}`);
+      
+      if (req.body && Object.keys(req.body).length > 0) {
+        console.log(`📦 Body: ${JSON.stringify(req.body, null, 2)}`);
+      }
+      
+      // Capture response
+      const originalSend = res.send;
+      res.send = function(data) {
+        console.log(`📤 Response [${res.statusCode}]: ${data.toString().substring(0, 200)}...`);
+        console.log(`🔚 Request completed\n`);
+        originalSend.call(this, data);
+      };
+      
       next();
     });
   }
@@ -252,6 +270,9 @@ class FoursquareHTTPServer {
       }
     });
 
+    console.log(`\n🌍 [FOURSQUARE API] Making request to: ${url.toString()}`);
+    console.log(`🔑 Using API Key: ${API_KEY.substring(0, 10)}...`);
+
     const response = await fetch(url.toString(), {
       headers: {
         'Accept': 'application/json',
@@ -260,12 +281,18 @@ class FoursquareHTTPServer {
       },
     });
 
+    console.log(`📡 [FOURSQUARE API] Response status: ${response.status} ${response.statusText}`);
+
     if (!response.ok) {
       const errorText = await response.text();
+      console.log(`❌ [FOURSQUARE API] Error: ${errorText}`);
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log(`✅ [FOURSQUARE API] Success! Results count: ${data.results?.length || 'N/A'}`);
+    
+    return data;
   }
 
   async searchPlaces(args) {
