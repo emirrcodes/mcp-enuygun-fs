@@ -69,6 +69,14 @@ class FoursquareHTTPServer {
             };
             break;
             
+          case 'notifications/initialized':
+            // Client initialization notification - just acknowledge
+            res.json({
+              jsonrpc: '2.0',
+              id
+            });
+            return;
+            
           case 'tools/list':
             result = await this.handleListTools();
             break;
