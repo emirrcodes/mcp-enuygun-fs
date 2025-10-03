@@ -54,7 +54,16 @@ class FoursquareHTTPServer {
       // Capture response
       const originalSend = res.send;
       res.send = function(data) {
-        console.log(`📤 Response [${res.statusCode}]: ${data.toString().substring(0, 200)}...`);
+        console.log(`📤 Response [${res.statusCode}]:`);
+        
+        // Parse and pretty print JSON if possible
+        try {
+          const jsonData = JSON.parse(data);
+          console.log(JSON.stringify(jsonData, null, 2));
+        } catch (e) {
+          console.log(data.toString());
+        }
+        
         console.log(`🔚 Request completed\n`);
         originalSend.call(this, data);
       };
