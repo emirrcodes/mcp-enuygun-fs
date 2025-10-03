@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -10,9 +11,16 @@ import {
 import fetch from 'node-fetch';
 
 // Foursquare API Configuration
-const API_KEY = "VAIBONJPWHIA3LZVS41H1YJX2XNZM5HTLKPBC30KCCHHO24P";
+const API_KEY = process.env.FOURSQUARE_API_KEY || "VAIBONJPWHIA3LZVS41H1YJX2XNZM5HTLKPBC30KCCHHO24P";
 const API_BASE_URL = "https://places-api.foursquare.com/places";
 const API_VERSION = "2025-06-17";
+
+// Amadeus API Configuration
+const AMADEUS_API_KEY = process.env.AMADEUS_API_KEY || "cHLsOr3SiGhAZsoEc3ubeAep9apsGqBa";
+const AMADEUS_API_SECRET = process.env.AMADEUS_API_SECRET || "CryAkOZZYTB82Mhc";
+const AMADEUS_BASE_URL = "https://test.api.amadeus.com";
+const AMADEUS_TOKEN_URL = `${AMADEUS_BASE_URL}/v1/security/oauth2/token`;
+const NOMINATIM_USER_AGENT = process.env.NOMINATIM_USER_AGENT || "mcp-server/1.0 (contact: admin@example.com)";
 
 class FoursquareHTTPServer {
   constructor() {
@@ -28,6 +36,10 @@ class FoursquareHTTPServer {
         },
       }
     );
+    
+    // Amadeus token management
+    this.amadeusAccessToken = null;
+    this.amadeusTokenExpiry = null;
     
     this.setupMiddleware();
     this.setupRoutes();
@@ -128,6 +140,17 @@ class FoursquareHTTPServer {
         res.status(500).json({ error: error.message });
       }
     });
+
+    // Amadeus API endpoints
+    this.app.get('/api/activities', async (req, res) => {
+      try {
+        const { city = 'Istanbul', type = 'museum', limit = 10 } = req.query;
+        const result = await this.searchActivities({ city, type, limit: parseInt(limit) });
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
   }
 
   setupMCPHandlers() {
@@ -187,6 +210,7 @@ class FoursquareHTTPServer {
   async handleListTools() {
     return {
       tools: [
+        // Foursquare Tools
         {
           name: 'search_places',
           description: 'Search for places using Foursquare Places API',
@@ -227,6 +251,55 @@ class FoursquareHTTPServer {
             },
             required: ['fsq_place_id']
           }
+        },
+        // Amadeus Tools
+        {
+          name: 'search_activities',
+          description: 'Search for activities and attractions in a city using Amadeus API',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              city: {
+                type: 'string',
+                description: 'City name to search activities in (e.g., "Istanbul", "Paris", "New York")',
+                default: 'Istanbul'
+              },
+              type: {
+                type: 'string',
+                description: 'Type of activity to search for (e.g., "museum", "restaurant", "tour", "boat", "food")',
+                default: 'museum'
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of activities to return (1-50)',
+                default: 10,
+                minimum: 1,
+                maximum: 50
+              }
+            },
+            required: ['city']
+          }
+        },
+        {
+          name: 'get_city_activities',
+          description: 'Get all available activities in a specific city without filtering',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              city: {
+                type: 'string',
+                description: 'City name (e.g., "Istanbul", "Antalya", "Cappadocia")',
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of activities to return',
+                default: 20,
+                minimum: 1,
+                maximum: 50
+              }
+            },
+            required: ['city']
+          }
         }
       ]
     };
@@ -236,10 +309,16 @@ class FoursquareHTTPServer {
     const { name, arguments: args } = params;
 
     switch (name) {
+      // Foursquare Tools
       case 'search_places':
         return await this.searchPlaces(args);
       case 'get_place_details':
         return await this.getPlaceDetails(args);
+      // Amadeus Tools  
+      case 'search_activities':
+        return await this.searchActivities(args);
+      case 'get_city_activities':
+        return await this.getCityActivities(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -361,13 +440,210 @@ class FoursquareHTTPServer {
     };
   }
 
+  // === AMADEUS API METHODS ===
+
+  async getAmadeusToken() {
+    // Check if we have a valid token
+    if (this.amadeusAccessToken && this.amadeusTokenExpiry && Date.now() < this.amadeusTokenExpiry) {
+      return this.amadeusAccessToken;
+    }
+
+    console.log('🔑 [AMADEUS] Getting new access token...');
+    
+    const response = await fetch(AMADEUS_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: AMADEUS_API_KEY,
+        client_secret: AMADEUS_API_SECRET
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Amadeus OAuth failed: ${response.status} ${errorText}`);
+    }
+
+    const tokenData = await response.json();
+    this.amadeusAccessToken = tokenData.access_token;
+    this.amadeusTokenExpiry = Date.now() + (tokenData.expires_in * 1000) - 60000; // 1 minute buffer
+    
+    console.log('✅ [AMADEUS] Access token obtained');
+    return this.amadeusAccessToken;
+  }
+
+  async getNominatimBoundingBox(city) {
+    console.log(`🗺️ [NOMINATIM] Getting coordinates for: ${city}`);
+    
+    const url = new URL('https://nominatim.openstreetmap.org/search');
+    url.searchParams.append('q', city);
+    url.searchParams.append('format', 'json');
+    url.searchParams.append('addressdetails', '1');
+    url.searchParams.append('limit', '1');
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'User-Agent': NOMINATIM_USER_AGENT
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Nominatim API failed: ${response.status}`);
+    }
+
+    const results = await response.json();
+    if (!results || results.length === 0) {
+      throw new Error(`No location found for: ${city}`);
+    }
+
+    const boundingbox = results[0].boundingbox;
+    // Nominatim returns: [south, north, west, east]
+    const south = parseFloat(boundingbox[0]);
+    const north = parseFloat(boundingbox[1]);
+    const west = parseFloat(boundingbox[2]);
+    const east = parseFloat(boundingbox[3]);
+
+    console.log(`✅ [NOMINATIM] Coordinates found: N:${north}, W:${west}, S:${south}, E:${east}`);
+    return { north, west, south, east };
+  }
+
+  async getActivitiesBySquare(accessToken, north, west, south, east) {
+    const url = new URL(`${AMADEUS_BASE_URL}/v1/shopping/activities/by-square`);
+    url.searchParams.append('north', north.toString());
+    url.searchParams.append('west', west.toString());
+    url.searchParams.append('south', south.toString());
+    url.searchParams.append('east', east.toString());
+    
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Amadeus activities API failed: ${response.status} ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  htmlToText(html, maxLen = 180) {
+    if (!html) return '';
+    
+    // Remove HTML tags
+    let text = html.replace(/<[^>]+>/g, ' ');
+    // Normalize whitespace
+    text = text.replace(/\s+/g, ' ').trim();
+    
+    if (text.length > maxLen) {
+      return text.substring(0, maxLen - 1).trim() + '…';
+    }
+    return text;
+  }
+
+  filterActivities(items, activityType) {
+    if (!activityType) return items;
+    
+    const query = activityType.toLowerCase();
+    return items.filter(item => {
+      const name = (item.name || '').toLowerCase();
+      const description = (item.description || '').toLowerCase();
+      const categories = (item.classifications || [])
+        .map(c => (c.category?.code || '').toLowerCase())
+        .join(' ');
+      
+      const searchText = `${name} ${description} ${categories}`;
+      return searchText.includes(query);
+    });
+  }
+
+  mapActivity(item) {
+    const price = item.price || {};
+    const pictures = item.pictures || [];
+    
+    return {
+      name: item.name,
+      link: item.bookingLink || item.self?.href,
+      price: {
+        amount: price.amount,
+        currency: price.currencyCode
+      },
+      image: pictures[0] || null,
+      description: this.htmlToText(item.description || '', 300)
+    };
+  }
+
+  async searchActivities(args) {
+    const { city = 'Istanbul', type = 'museum', limit = 10 } = args;
+
+    try {
+      // Get access token
+      const accessToken = await this.getAmadeusToken();
+      
+      // Get city coordinates
+      const { north, west, south, east } = await this.getNominatimBoundingBox(city);
+      
+      // Get activities
+      const activitiesResponse = await this.getActivitiesBySquare(accessToken, north, west, south, east);
+      let items = activitiesResponse.data || [];
+      
+      // Filter by type
+      items = this.filterActivities(items, type);
+      
+      // Apply limit
+      if (limit && limit > 0) {
+        items = items.slice(0, limit);
+      }
+
+      // Map to our format
+      const activities = items.map(item => this.mapActivity(item));
+
+      console.log(`✅ [AMADEUS] Found ${activities.length} activities for "${type}" in ${city}`);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Found ${activities.length} ${type} activities in ${city}:\n\n` +
+                  activities.map((activity, index) => 
+                    `${index + 1}. **${activity.name}**\n` +
+                    `   🔗 ${activity.link || 'No booking link'}\n` +
+                    `   💰 ${activity.price.amount ? `${activity.price.amount} ${activity.price.currency}` : 'Price not available'}\n` +
+                    `   📸 ${activity.image || 'No image'}\n` +
+                    `   📝 ${activity.description || 'No description'}\n`
+                  ).join('\n')
+          }
+        ]
+      };
+
+    } catch (error) {
+      console.error(`❌ [AMADEUS] Error searching activities: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getCityActivities(args) {
+    const { city, limit = 20 } = args;
+    
+    // Use searchActivities without type filter
+    return await this.searchActivities({ city, type: '', limit });
+  }
+
   async start(port = 3000) {
     return new Promise((resolve) => {
       this.app.listen(port, () => {
-        console.log(`🚀 Foursquare MCP HTTP Server running on http://localhost:${port}`);
+        console.log(`🚀 Multi-API MCP HTTP Server running on http://localhost:${port}`);
         console.log(`📋 Health check: http://localhost:${port}/health`);
         console.log(`🔌 MCP endpoint: http://localhost:${port}/mcp`);
-        console.log(`🧪 Direct API: http://localhost:${port}/api/search?near=Antalya&query=restaurant`);
+        console.log(`🧪 Foursquare API: http://localhost:${port}/api/search?near=Antalya&query=restaurant`);
+        console.log(`🎭 Amadeus API: http://localhost:${port}/api/activities?city=Istanbul&type=museum`);
+        console.log(`📊 Available tools: search_places, get_place_details, search_activities, get_city_activities`);
         resolve();
       });
     });
