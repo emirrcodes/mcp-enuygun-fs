@@ -38,36 +38,10 @@ class FoursquareHTTPServer {
     this.app.use(cors());
     this.app.use(express.json());
     
-    // Enhanced request logging
+    // Simple request logging
     this.app.use((req, res, next) => {
       const timestamp = new Date().toISOString();
-      const clientIP = req.ip || req.connection.remoteAddress;
-      
-      console.log(`\n🔵 [${timestamp}] ${req.method} ${req.path}`);
-      console.log(`👤 Client IP: ${clientIP}`);
-      console.log(`📋 Headers: ${JSON.stringify(req.headers, null, 2)}`);
-      
-      if (req.body && Object.keys(req.body).length > 0) {
-        console.log(`📦 Body: ${JSON.stringify(req.body, null, 2)}`);
-      }
-      
-      // Capture response
-      const originalSend = res.send;
-      res.send = function(data) {
-        console.log(`📤 Response [${res.statusCode}]:`);
-        
-        // Parse and pretty print JSON if possible
-        try {
-          const jsonData = JSON.parse(data);
-          console.log(JSON.stringify(jsonData, null, 2));
-        } catch (e) {
-          console.log(data.toString());
-        }
-        
-        console.log(`🔚 Request completed\n`);
-        originalSend.call(this, data);
-      };
-      
+      console.log(`🔵 [${timestamp}] ${req.method} ${req.path} - ${req.body?.method || 'N/A'}`);
       next();
     });
   }
@@ -279,8 +253,8 @@ class FoursquareHTTPServer {
       }
     });
 
-    console.log(`\n🌍 [FOURSQUARE API] Making request to: ${url.toString()}`);
-    console.log(`🔑 Using API Key: ${API_KEY.substring(0, 10)}...`);
+    // console.log(`🌍 [FOURSQUARE API] Making request to: ${url.toString()}`);
+    // console.log(`🔑 Using API Key: ${API_KEY.substring(0, 10)}...`);
 
     const response = await fetch(url.toString(), {
       headers: {
@@ -290,7 +264,7 @@ class FoursquareHTTPServer {
       },
     });
 
-    console.log(`📡 [FOURSQUARE API] Response status: ${response.status} ${response.statusText}`);
+    // console.log(`📡 [FOURSQUARE API] Response status: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -299,7 +273,7 @@ class FoursquareHTTPServer {
     }
 
     const data = await response.json();
-    console.log(`✅ [FOURSQUARE API] Success! Results count: ${data.results?.length || 'N/A'}`);
+    console.log(`✅ [FOURSQUARE API] ${endpoint} - Found ${data.results?.length || 'N/A'} results`);
     
     return data;
   }
