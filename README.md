@@ -26,6 +26,14 @@ Bu proje, **Foursquare Places API** ve **Amadeus Activities API**'lerini kullana
 - ~~**Foursquare Photos API**~~ (Credit tasarrufu için kapalı)
 - ~~**Bing Image Scraping**~~ (Yedekte tutuluyor)
 
+## 🌐 Live Demo
+
+**🔗 Production Server:** https://mcp-enuygun-fs.onrender.com
+
+- **Health Check:** https://mcp-enuygun-fs.onrender.com/health
+- **MCP Endpoint:** https://mcp-enuygun-fs.onrender.com/mcp
+- **API Endpoints:** https://mcp-enuygun-fs.onrender.com/api/
+
 ## 🚀 Kurulum
 
 ### 1. Proje Kurulumu
@@ -112,15 +120,22 @@ npm run test-agent    # OpenAI Agent SDK testi
 ```javascript
 import { Agent, MCPServerStreamableHttp } from '@openai/agents';
 
+// Local development
 const mcpServer = new MCPServerStreamableHttp({
   url: 'http://localhost:3000/mcp',
   name: 'Multi-API Travel Server',
 });
 
+// Production (Live server)
+const mcpServerProd = new MCPServerStreamableHttp({
+  url: 'https://mcp-enuygun-fs.onrender.com/mcp',
+  name: 'Multi-API Travel Server (Production)',
+});
+
 const agent = new Agent({
   name: 'Travel Assistant',
   instructions: 'Use Foursquare and Amadeus APIs for travel planning.',
-  mcpServers: [mcpServer],
+  mcpServers: [mcpServerProd], // Use mcpServer for local development
 });
 ```
 
@@ -166,20 +181,35 @@ const agent = new Agent({
 
 ### Foursquare Endpoints
 ```bash
-GET /api/search?near=Istanbul&query=cafe&limit=5
-GET /api/place/:fsq_place_id
-GET /api/photos/:fsq_place_id?limit=10
+# Local
+GET http://localhost:3000/api/search?near=Istanbul&query=cafe&limit=5
+GET http://localhost:3000/api/place/:fsq_place_id
+GET http://localhost:3000/api/photos/:fsq_place_id?limit=10
+
+# Production
+GET https://mcp-enuygun-fs.onrender.com/api/search?near=Istanbul&query=cafe&limit=5
+GET https://mcp-enuygun-fs.onrender.com/api/place/:fsq_place_id
+GET https://mcp-enuygun-fs.onrender.com/api/photos/:fsq_place_id?limit=10
 ```
 
 ### Amadeus Endpoints
 ```bash
-GET /api/activities?city=Istanbul&type=museum&limit=5
+# Local
+GET http://localhost:3000/api/activities?city=Istanbul&type=museum&limit=5
+
+# Production
+GET https://mcp-enuygun-fs.onrender.com/api/activities?city=Istanbul&type=museum&limit=5
 ```
 
 ### System Endpoints
 ```bash
-GET /health           # Health check
-POST /mcp            # MCP protocol endpoint
+# Local
+GET http://localhost:3000/health           # Health check
+POST http://localhost:3000/mcp            # MCP protocol endpoint
+
+# Production
+GET https://mcp-enuygun-fs.onrender.com/health           # Health check
+POST https://mcp-enuygun-fs.onrender.com/mcp            # MCP protocol endpoint
 ```
 
 ## 📸 Fotoğraf Özelliklerini Aktifleştirme
