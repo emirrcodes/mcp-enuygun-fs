@@ -1,29 +1,98 @@
-# Foursquare Places MCP Server
+# 🌍 Multi-API MCP Server
 
-Bu proje, Foursquare Places API'sini kullanan bir Model Context Protocol (MCP) server'ıdır. Claude Desktop ile entegre edilerek mekan arama, detay görüntüleme ve fotoğraf listeleme işlemlerini gerçekleştirebilirsiniz.
+Bu proje, **Foursquare Places API** ve **Amadeus Activities API**'lerini kullanan gelişmiş bir Model Context Protocol (MCP) server'ıdır. Claude Desktop ve OpenAI Agent SDK ile entegre edilerek mekan arama, turistik aktivite bulma ve seyahat planlaması işlemlerini gerçekleştirebilirsiniz.
 
-## Özellikler
+## ✨ Özellikler
 
+### 🏢 **Foursquare Places API**
 - **Mekan Arama**: Belirtilen lokasyon yakınında mekanları arayın
 - **Mekan Detayları**: Belirli bir mekanın detaylı bilgilerini alın
-- **Mekan Fotoğrafları**: Mekanların fotoğraflarını listeleyin
+- **Kategori Filtreleme**: Restoran, kafe, müze gibi kategorilere göre filtreleyin
+- **Mesafe Hesaplama**: Konumunuza göre mesafe bilgisi
 
-## Kurulum
+### 🎯 **Amadeus Activities API**
+- **Turistik Aktiviteler**: Şehirlerdeki müze, tur, etkinlik arama
+- **Şehir Bazlı Arama**: Belirli şehirlerdeki tüm aktiviteleri listeleyin
+- **Fiyat Bilgisi**: Aktivite fiyatları ve rezervasyon linkleri
+- **Detaylı Açıklamalar**: HTML temizlenmiş aktivite açıklamaları
 
-1. Proje klasörüne gidin:
+### 🔗 **Entegrasyon Seçenekleri**
+- **HTTP MCP Server**: OpenAI Agent SDK ile entegrasyon
+- **Stdio MCP Server**: Claude Desktop ile direkt entegrasyon
+- **REST API Endpoints**: Direkt API erişimi
+- **CORS Desteği**: Web uygulamaları için
+
+### 📸 **Fotoğraf Özellikleri** (Şimdilik Devre Dışı)
+- ~~**Foursquare Photos API**~~ (Credit tasarrufu için kapalı)
+- ~~**Bing Image Scraping**~~ (Yedekte tutuluyor)
+
+## 🚀 Kurulum
+
+### 1. Proje Kurulumu
 ```bash
 cd /Users/emirarslan/Desktop/mcp
-```
-
-2. Bağımlılıkları yükleyin:
-```bash
 npm install
 ```
 
-## Claude Desktop Konfigürasyonu
+### 2. Environment Variables
+`.env` dosyası oluşturun:
+```bash
+cp .env.example .env
+```
 
-Claude Desktop'ınızın ayarlar dosyasını (`claude_desktop_config.json`) açın ve şu konfigürasyonu ekleyin:
+`.env` dosyasını düzenleyin:
+```env
+FOURSQUARE_API_KEY="YOUR_FOURSQUARE_API_KEY"
+AMADEUS_API_KEY="YOUR_AMADEUS_API_KEY"
+AMADEUS_API_SECRET="YOUR_AMADEUS_API_SECRET"
+NOMINATIM_USER_AGENT="mcp-server/1.0 (contact: your-email@example.com)"
+```
 
+### 3. API Key'lerini Alın
+- **Foursquare**: [developer.foursquare.com](https://developer.foursquare.com)
+- **Amadeus**: [developers.amadeus.com](https://developers.amadeus.com)
+
+## 🎮 Kullanım
+
+### HTTP MCP Server (Önerilen)
+```bash
+npm run http
+# Server: http://localhost:3000
+# MCP Endpoint: http://localhost:3000/mcp
+# Health Check: http://localhost:3000/health
+```
+
+### Stdio MCP Server (Claude Desktop)
+```bash
+npm start
+```
+
+### Development Mode
+```bash
+npm run http-dev  # HTTP server with auto-reload
+npm run dev       # Stdio server with auto-reload
+```
+
+## 🧪 Test Komutları
+
+```bash
+# Temel API testleri
+npm run test-api      # Foursquare API testi
+npm run test-simple   # Kapsamlı HTTP MCP testi
+
+# Özel testler
+npm run test-photos   # Foursquare Photos testi (devre dışı)
+npm run test-bing     # Bing Image testi (devre dışı)
+
+# MCP Protocol testleri
+npm run test-mcp      # Stdio MCP testi
+npm run test-http     # HTTP MCP testi
+npm run test-agent    # OpenAI Agent SDK testi
+```
+
+## 🔧 Claude Desktop Entegrasyonu
+
+`claude_desktop_config.json` dosyasına ekleyin:
 ```json
 {
   "mcpServers": {
@@ -31,73 +100,207 @@ Claude Desktop'ınızın ayarlar dosyasını (`claude_desktop_config.json`) aç�
       "command": "node",
       "args": ["/Users/emirarslan/Desktop/mcp/server.js"],
       "env": {
-        "NODE_ENV": "production"
+        "FOURSQUARE_API_KEY": "YOUR_API_KEY"
       }
     }
   }
 }
 ```
 
-**macOS için config dosyası konumu:**
-`~/Library/Application Support/Claude/claude_desktop_config.json`
+## 🤖 OpenAI Agent SDK Entegrasyonu
 
-**Alternatif olarak**, bu repo'daki `claude_desktop_config.json` dosyasını yukarıdaki konuma kopyalayabilirsiniz.
-
-## Kullanım
-
-Claude Desktop'ı yeniden başlattıktan sonra aşağıdaki araçlar kullanılabilir olacaktır:
-
-### 1. Mekan Arama (`search_places`)
-```
-Antalya'da bazaar ara
-```
-veya
-```
-İstanbul'da restaurant ara, 5 sonuç getir
-```
-
-### 2. Mekan Detayları (`get_place_details`)
-```
-Bu mekanın detaylarını göster: [fsq_id]
-```
-
-### 3. Mekan Fotoğrafları (`get_place_photos`)
-```
-Bu mekanın fotoğraflarını göster: [fsq_id]
-```
-
-## API Anahtarı
-
-Server şu anda sabit kodlanmış bir Foursquare API anahtarı kullanıyor. Prodüksiyon kullanımı için:
-
-1. `server.js` dosyasındaki `API_KEY` değişkenini kendi API anahtarınızla değiştirin
-2. Alternatif olarak, environment variable kullanın:
 ```javascript
-const API_KEY = process.env.FOURSQUARE_API_KEY || "YOUR_API_KEY_HERE";
+import { Agent, MCPServerStreamableHttp } from '@openai/agents';
+
+const mcpServer = new MCPServerStreamableHttp({
+  url: 'http://localhost:3000/mcp',
+  name: 'Multi-API Travel Server',
+});
+
+const agent = new Agent({
+  name: 'Travel Assistant',
+  instructions: 'Use Foursquare and Amadeus APIs for travel planning.',
+  mcpServers: [mcpServer],
+});
 ```
 
-## Geliştirme
+## 🛠️ Available Tools
 
-Development modunda çalıştırmak için:
+### Foursquare Tools
+- **`search_places`**: Mekan arama
+  ```json
+  {
+    "near": "Istanbul Kadıköy",
+    "query": "cafe",
+    "limit": 10,
+    "categories": "13065" // Optional
+  }
+  ```
+
+- **`get_place_details`**: Mekan detayları
+  ```json
+  {
+    "fsq_place_id": "4eaec357b8f765aba1e03d9e"
+  }
+  ```
+
+### Amadeus Tools
+- **`search_activities`**: Aktivite arama
+  ```json
+  {
+    "city": "Istanbul",
+    "type": "museum",
+    "limit": 10
+  }
+  ```
+
+- **`get_city_activities`**: Şehir aktiviteleri
+  ```json
+  {
+    "city": "Cappadocia",
+    "limit": 20
+  }
+  ```
+
+## 🌐 REST API Endpoints
+
+### Foursquare Endpoints
 ```bash
-npm run dev
+GET /api/search?near=Istanbul&query=cafe&limit=5
+GET /api/place/:fsq_place_id
+GET /api/photos/:fsq_place_id?limit=10
 ```
 
-## Test
-
-Server'ı manuel olarak test etmek için:
+### Amadeus Endpoints
 ```bash
-npm start
+GET /api/activities?city=Istanbul&type=museum&limit=5
 ```
 
-Server başlatıldıktan sonra stdio üzerinden MCP protokolü ile iletişim kuracaktır.
+### System Endpoints
+```bash
+GET /health           # Health check
+POST /mcp            # MCP protocol endpoint
+```
 
-## Sorun Giderme
+## 📸 Fotoğraf Özelliklerini Aktifleştirme
 
+### Foursquare Photos API'yi Açmak İçin:
+1. `http-server.js` dosyasında şu satırları bulun:
+   ```javascript
+   // === FOURSQUARE PHOTOS API (DISABLED) ===
+   // Uncomment the methods below to re-enable Foursquare Photos API
+   /*
+   ```
+
+2. `/*` ve `*/` işaretlerini kaldırın
+
+3. Bu satırı aktifleştirin:
+   ```javascript
+   // formattedResults = await this.enhanceWithFoursquarePhotos(formattedResults);
+   ```
+
+4. Bu satırı değiştirin:
+   ```javascript
+   `   📸 Photo feature temporarily disabled\n` +
+   // Şu hale getirin:
+   `   📸 ${place.foursquarePhoto || 'No photo available'}\n` +
+   ```
+
+### Bing Image Scraping'i Açmak İçin:
+1. `http-server.js` dosyasında şu bölümü bulun:
+   ```javascript
+   // === BING IMAGE SCRAPING METHODS (DISABLED) ===
+   /*
+   ```
+
+2. `/*` ve `*/` işaretlerini kaldırın
+
+3. `searchPlaces` method'unda şu satırı aktifleştirin:
+   ```javascript
+   // formattedResults = await this.enhanceWithImages(formattedResults, (place) => {
+   //   return `${place.name} ${near}`;
+   // });
+   ```
+
+## 🚨 Sorun Giderme
+
+### Yaygın Hatalar
 1. **Server çalışmıyor**: Node.js sürümünüzün 18+ olduğunu kontrol edin
-2. **API hataları**: Foursquare API anahtarınızın geçerli olduğunu kontrol edin
-3. **Claude Desktop bağlantı sorunu**: Config dosyası yolunun doğru olduğunu ve JSON formatının geçerli olduğunu kontrol edin
+2. **API hataları**: API anahtarlarınızın geçerli olduğunu kontrol edin
+3. **429 Hatası**: API credit'iniz bitmiş olabilir - billing sayfasından kontrol edin
+4. **Port çakışması**: `PORT=3001 npm run http` ile farklı port kullanın
+5. **CORS hataları**: Server'ın CORS middleware'i aktif olduğunu kontrol edin
 
-## Lisans
+### Debug Modları
+```bash
+# Detaylı loglar için
+DEBUG=* npm run http
 
-MIT
+# Sadece API logları
+DEBUG=api npm run http
+```
+
+### API Limitleri
+- **Foursquare**: Günlük 1000 istek (Free tier)
+- **Amadeus**: Aylık 1000 istek (Test environment)
+- **Nominatim**: Saniyede 1 istek (Rate limiting)
+
+## 📁 Proje Yapısı
+
+```
+mcp/
+├── server.js                 # Stdio MCP server
+├── http-server.js           # HTTP MCP server (Ana dosya)
+├── test-api.js              # API testleri
+├── test-simple.js           # Kapsamlı testler
+├── test-foursquare-photos.js # Fotoğraf testleri
+├── test-bing-images.js      # Bing image testleri
+├── claude_desktop_config.json # Claude Desktop config
+├── .env.example             # Environment variables template
+├── package.json             # Dependencies ve scripts
+└── README.md               # Bu dosya
+```
+
+## 🔄 Deployment
+
+### Railway
+```bash
+railway login
+railway init
+railway deploy
+```
+
+### Render
+1. GitHub repo'yu bağlayın
+2. Build command: `npm install`
+3. Start command: `npm start`
+4. Environment variables'ları ekleyin
+
+### ngrok (Local testing)
+```bash
+ngrok http 3000
+# Public URL: https://xxx.ngrok-free.dev/mcp
+```
+
+## 🤝 Katkıda Bulunma
+
+1. Fork edin
+2. Feature branch oluşturun (`git checkout -b feature/amazing-feature`)
+3. Commit edin (`git commit -m 'Add amazing feature'`)
+4. Push edin (`git push origin feature/amazing-feature`)
+5. Pull Request açın
+
+## 📄 Lisans
+
+MIT License - Detaylar için `LICENSE` dosyasına bakın.
+
+## 🙏 Teşekkürler
+
+- [Foursquare Places API](https://developer.foursquare.com)
+- [Amadeus for Developers](https://developers.amadeus.com)
+- [Model Context Protocol](https://modelcontextprotocol.io)
+- [OpenAI Agent SDK](https://github.com/openai/agents-sdk)
+
+---
+
+**🚀 Happy Coding!** Bu server ile seyahat planlaması artık çok daha kolay!

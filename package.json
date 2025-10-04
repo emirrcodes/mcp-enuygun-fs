@@ -13,7 +13,9 @@
     "test-mcp": "node test-mcp.js",
     "test-simple": "node test-simple.js",
     "test-http": "node test-openai-agent.js http",
-    "test-agent": "node test-openai-agent.js agent"
+    "test-agent": "node test-openai-agent.js agent",
+    "test-bing": "node test-bing-images.js",
+    "test-photos": "node test-foursquare-photos.js"
   },
   "keywords": ["mcp", "foursquare", "places", "api"],
   "author": "",

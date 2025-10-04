@@ -385,11 +385,9 @@ class FoursquareHTTPServer {
       link: place.link || 'No link'
     }));
 
-    // Enhance with Bing images
-    formattedResults = await this.enhanceWithImages(formattedResults, (place) => {
-      // Create search term: place name + location for better results
-      return `${place.name} ${near}`;
-    });
+    // Enhance with Foursquare Photos API (DISABLED)
+    // Uncomment the line below to re-enable Foursquare Photos
+    // formattedResults = await this.enhanceWithFoursquarePhotos(formattedResults);
 
     return {
       content: [
@@ -403,7 +401,7 @@ class FoursquareHTTPServer {
                   `   📏 ${place.distance}\n` +
                   `   🌍 ${place.latitude}, ${place.longitude}\n` +
                   `   🔗 ${place.link}\n` +
-                  `   🖼️ ${place.bingImage || 'No Bing image found'}\n` +
+                  `   📸 Photo feature temporarily disabled\n` +
                   `   🆔 ID: ${place.fsq_place_id}\n`
                 ).join('\n')
         }
@@ -610,13 +608,7 @@ class FoursquareHTTPServer {
       }
 
       // Map to our format
-      let activities = items.map(item => this.mapActivity(item));
-
-      // Enhance with Bing images
-      activities = await this.enhanceWithImages(activities, (activity) => {
-        // Create search term: activity name + city for better results
-        return `${activity.name} ${city}`;
-      });
+      const activities = items.map(item => this.mapActivity(item));
 
       console.log(`✅ [AMADEUS] Found ${activities.length} activities for "${type}" in ${city}`);
 
@@ -629,8 +621,7 @@ class FoursquareHTTPServer {
                     `${index + 1}. **${activity.name}**\n` +
                     `   🔗 ${activity.link || 'No booking link'}\n` +
                     `   💰 ${activity.price.amount ? `${activity.price.amount} ${activity.price.currency}` : 'Price not available'}\n` +
-                    `   📸 ${activity.image || 'No original image'}\n` +
-                    `   🖼️ ${activity.bingImage || 'No Bing image found'}\n` +
+                    `   📸 ${activity.image || 'No image'}\n` +
                     `   📝 ${activity.description || 'No description'}\n`
                   ).join('\n')
           }
@@ -650,8 +641,10 @@ class FoursquareHTTPServer {
     return await this.searchActivities({ city, type: '', limit });
   }
 
-  // === BING IMAGE SCRAPING METHODS ===
+  // === BING IMAGE SCRAPING METHODS (DISABLED) ===
+  // Uncomment the methods below to re-enable Bing image scraping
 
+  /*
   async getBingImageUrl(searchTerm, count = 1) {
     if (!searchTerm || searchTerm.trim() === '') {
       return null;
@@ -723,6 +716,85 @@ class FoursquareHTTPServer {
     
     return enhancedItems;
   }
+  */
+
+  // === FOURSQUARE PHOTOS API (DISABLED) ===
+  // Uncomment the methods below to re-enable Foursquare Photos API
+
+  /*
+  async getPlacePhotos(fsq_place_id, limit = 1) {
+    try {
+      console.log(`📸 [FOURSQUARE PHOTOS] Getting photos for place: ${fsq_place_id}`);
+      
+      const url = `${API_BASE_URL}/${fsq_place_id}/photos?limit=${limit}&sort=popular`;
+      console.log(`🔗 [FOURSQUARE PHOTOS] Request URL: ${url}`);
+      console.log(`🔑 [FOURSQUARE PHOTOS] API Key: ${API_KEY.substring(0, 10)}...`);
+      console.log(`📅 [FOURSQUARE PHOTOS] API Version: ${API_VERSION}`);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`,
+          'X-Places-Api-Version': API_VERSION,
+        },
+      });
+
+      console.log(`📊 [FOURSQUARE PHOTOS] Response Status: ${response.status} ${response.statusText}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log(`❌ [FOURSQUARE PHOTOS] Request failed: ${response.status}`);
+        console.log(`❌ [FOURSQUARE PHOTOS] Error Response: ${errorText}`);
+        
+        // Check if it's a credit/billing issue
+        if (response.status === 429) {
+          console.log(`💳 [FOURSQUARE PHOTOS] Rate limit or credit issue detected`);
+        }
+        
+        return null;
+      }
+
+      const photos = await response.json();
+      console.log(`📸 [FOURSQUARE PHOTOS] Raw response:`, JSON.stringify(photos, null, 2));
+      
+      if (!photos || photos.length === 0) {
+        console.log(`📸 [FOURSQUARE PHOTOS] No photos found for place: ${fsq_place_id}`);
+        return null;
+      }
+
+      // Get first photo and assemble URL
+      const firstPhoto = photos[0];
+      const photoUrl = `${firstPhoto.prefix}original${firstPhoto.suffix}`;
+      
+      console.log(`✅ [FOURSQUARE PHOTOS] Found photo: ${photoUrl}`);
+      return photoUrl;
+
+    } catch (error) {
+      console.error(`❌ [FOURSQUARE PHOTOS] Error: ${error.message}`);
+      console.error(`❌ [FOURSQUARE PHOTOS] Stack: ${error.stack}`);
+      return null;
+    }
+  }
+
+  async enhanceWithFoursquarePhotos(places) {
+    // Enhance places with Foursquare Photos API
+    const enhancedPlaces = [];
+    
+    for (const place of places) {
+      const photoUrl = await this.getPlacePhotos(place.fsq_place_id, 1);
+      
+      enhancedPlaces.push({
+        ...place,
+        foursquarePhoto: photoUrl
+      });
+      
+      // Small delay to be respectful to API
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    return enhancedPlaces;
+  }
+  */
 
   async start(port = 3000) {
     return new Promise((resolve) => {
